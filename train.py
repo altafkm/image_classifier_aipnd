@@ -14,6 +14,7 @@ import torchvision.models as models
 import argparse
 from collections import OrderedDict
 import os
+import copy
 
 parser = argparse.ArgumentParser(description='Train Image Classifier')
 
@@ -41,22 +42,21 @@ if incorrect_data_dir:
         exit(1)
 
 data_transforms = {
-    "training": transforms.Compose([transforms.RandomRotation(30),
-                                       transforms.RandomResizedCrop(224),
-                                       transforms.RandomHorizontalFlip(),
-                                       transforms.ToTensor(),
-                                       transforms.Normalize([0.485, 0.456, 0.406],
-                                                            [0.229, 0.224, 0.225])]),
-    "validation": transforms.Compose([transforms.Resize(256),
-                                      transforms.CenterCrop(224),
-                                      transforms.ToTensor(),
-                                      transforms.Normalize([0.485, 0.456, 0.406],
-                                                           [0.229, 0.224, 0.225])]),
-    "test": transforms.Compose([transforms.Resize(256),
-                                      transforms.CenterCrop(224),
-                                      transforms.ToTensor(),
-                                      transforms.Normalize([0.485, 0.456, 0.406],
-                                                           [0.229, 0.224, 0.225])])
+    'train': transforms.Compose ([transforms.Resize(224),transforms.RandomRotation(30),transforms.CenterCrop(224),transforms.RandomHorizontalFlip(),transforms.ToTensor(),transforms.Normalize([0.485, 0.456, 0.406],[0.229, 0.224, 0.225])]),
+    'valid': transforms.Compose([
+        transforms.Resize(224),
+        transforms.CenterCrop(224),
+        transforms.ToTensor(),
+        transforms.Normalize([0.485, 0.456, 0.406], 
+                             [0.229, 0.224, 0.225])
+    ]),
+    'test': transforms.Compose([
+        transforms.Resize(224),
+        transforms.CenterCrop(224),
+        transforms.ToTensor(),
+        transforms.Normalize([0.485, 0.456, 0.406], 
+                             [0.229, 0.224, 0.225])
+    ])
 }
 
 image_datasets = {x: datasets.ImageFolder(os.path.join(data_dir, x),data_transforms[x])for x in ['train','valid','test']}
@@ -68,42 +68,40 @@ dataset_sizes = {x: len(image_datasets[x]) for x in ['train','valid','test']}
 class_names = image_datasets['train'].classes
 device = torch.device("cuda")
 
-if len(args.hidden_units) == 0:
-    args.hidden_units = [512]
-
-if args.arch not in('vgg' or 'densenet'):
+if args.arch not in('vgg19' or 'densenet121'):
     parser.error("Not trained model: Can only choose 'vgg19 or 'densenet121'")
 
 
 init_lr = args.learning_rate
 epochs = args.epochs
+model_nm = args.arch
 if args.epochs > 20:
     parser.error("Please choose value less than 20")
+    
+if model_nm == 'densenet121':
+    model = models.densenet121(pretrained=True)
+    input_features = 2208
+    #print(model)
+elif model_nm == 'vgg19':
+    model = models.vgg19(pretrained=True)
+    input_features = 25088
 
-model = models(args.arch)(pretrained=True)
 for param in model.parameters():
     param.requires_grad = False
 
-if 'vgg' in args.arch:
-    input_features = 25088
-elif 'densenet' in args.arch:
-    input_features = 2208
-
 from torch.optim import lr_scheduler
 
+if len(args.hidden_units) == 0:
+    args.hidden_units = 512
 
-hidden_layers = []
-previous_layer = input_features
+classifier = nn.Sequential(OrderedDict([
+                          ('fc1', nn.Linear(input_features,args.hidden_units)),
+                          ('relu', nn.ReLU()),
+                          #('droput',nn.Dropout(0.5)),
+                          ('fc2', nn.Linear(args.hidden_units, 102)),
+                          ('output', nn.Softmax(dim=1))
+                          ]))
 
-for i, layer in enumerate(args.hidden_units):
-    hidden_layers.append(('class_layer_' + str(i + 1), nn.Linear(previous_layer, hidden_layers)))
-    hidden_layers.append(('relu_' + str(i + 1), nn.ReLU()))
-    previous_layer = layer
-
-hidden_layers.append(('fc_last', nn.Linear(previous_layer, 102)))
-hidden_layers.append(('output', nn.LogSoftmax(dim=1)))
-
-classifier = nn.Sequential(OrderedDict(hidden_layers))
 model.classifier = classifier
 
 criterion = nn.CrossEntropyLoss()
