@@ -36,14 +36,9 @@ incorrect_data_dir = not os.path.exists(train_dir) \
                    or not os.path.exists(valid_dir) \
                    or not os.path.exists(test_dir)
 
-try:
-    if incorrect_data_dir:
-        print('Eww Error: This is incorrect data directory. ' + args.data_directory '/n')
-        print('Data directory should have train, valid and test sub directories')
+if incorrect_data_dir:
+        print('**Alert! There is no such directory existing Alert!** ' + args.data_directory + '/n')
         exit(1)
-except OSError:
-    print('Error: Checking data directory.')
-    exit(1)
 
 data_transforms = {
     "training": transforms.Compose([transforms.RandomRotation(30),
