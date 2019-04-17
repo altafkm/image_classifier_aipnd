@@ -108,8 +108,8 @@ criterion = nn.CrossEntropyLoss()
 optimizer = optim.Adam(model.classifier.parameters(), lr=init_lr)
 sched = lr_scheduler.StepLR(optimizer, step_size=4, gamma=0.1)
 
-check_gpu = 'cuda:0' if args.gpu and torch.cuda.is_available() else 'cpu'
-device = torch.device(check_gpu)
+processor_type = 'cuda:0' if args.gpu and torch.cuda.is_available() else 'cpu'
+device = torch.device(processor_type)
 model.to(device)
 
 #images.cuda()
@@ -126,35 +126,30 @@ def train_model(model, criterion, optimizer, sched, num_epochs=5):
 
         # Each epoch has a training and validation phase
         for phase in ['train','valid','test']:
+            print(phase)
             if phase == 'train':
                 model.train()  
             else:
               model.eval()
             running_loss = 0.0
             running_corrects = 0
-
             # Iterate over data
             for inputs, labels in dataloaders[phase]:
+                print(labels)
                 inputs = inputs.to(device)
                 labels = labels.to(device)
-
                 # zero the parameter gradients
                 optimizer.zero_grad()
-
                 # forward
                 # track history if only in train
                 with torch.set_grad_enabled(phase == 'train'):
                     outputs = model(inputs)
                     _, preds = torch.max(outputs, 1)
                     loss = criterion(outputs, labels)
-
                     # backward + optimize only if in training phase
-                    if phase == 'train':
-                        
-                        loss.backward()
-                        
+                    if phase == 'train':                        
+                        loss.backward()                        
                         optimizer.step()
-
                 # statistics
                 running_loss += loss.item() * inputs.size(0)
                 running_corrects += torch.sum(preds == labels.data)
@@ -162,10 +157,12 @@ def train_model(model, criterion, optimizer, sched, num_epochs=5):
             epoch_loss = running_loss / dataset_sizes[phase]
             epoch_acc = running_corrects.double() / dataset_sizes[phase]
 
-            print('{} Loss: {:.4f} Acc: {:.4f}'.format(
+            print('{} Loss: {:.4f} Accuracy: {:.4f}'.format(
                 phase, epoch_loss, epoch_acc))
 
             # deep copy the model
+            if phase == 'valid':
+                print('{} Accuracy:{:.4f}'.format(phase,epoch_accuracy))
             if phase == 'valid' and epoch_acc > best_acc:
                 best_acc = epoch_acc
                 best_model_wts = copy.deepcopy(model.state_dict())
@@ -177,7 +174,7 @@ def train_model(model, criterion, optimizer, sched, num_epochs=5):
     time_elapsed = time.time() - since
     print('Training complete in {:.0f}m {:.0f}s'.format(
         time_elapsed // 60, time_elapsed % 60))
-    print('Best val Acc: {:4f}'.format(best_acc))
+    print('Best val Accuracy: {:4f}'.format(best_acc))
 
     #load best model weights
     model.load_state_dict(best_model_wts)
@@ -193,6 +190,7 @@ print('Start of the Image Classification model')
 epochs = 10
 model.to(device)
 model = train_model(model, criterion, optimizer, sched, epochs)
+print('Epochs started')
 
 # TODO: Do validation on the test set
 
@@ -233,6 +231,9 @@ def init_checkpoint():
     torch.save(checkpoint, checkpoint.pth)
 
 init_checkpoint()
+my_saved_models = 'myclassifier.pth'
+path = "/content/gdrive/My Drive/Colab_Notebooks/my_saved_models" 
+torch.save(model.state_dict(), path)
 checkpoint = torch.load('checkpoint.pth')
 checkpoint.keys()
 
@@ -250,5 +251,5 @@ def load_checkpoint(filepath):
         
     return model, checkpoint['class_to_idx']
 
-model, class_to_idx = load_checkpoint('checkpoint.pth')
+model, class_to_idx = load_checkpoint('./checkpoint.pth')
 model
