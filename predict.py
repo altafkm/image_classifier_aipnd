@@ -27,7 +27,7 @@ parser.add_argument('--path2image', action='store', default='/content/flowers/te
 parser.add_argument('--top_k', action='store', default=3, type=int)
 parser.add_argument('--category_names', action='store', default='cat_to_name.json')
 parser.add_argument('--gpu', action='store_true', default=False)
-
+parser.add_argument('--saved_models',action='store',default='./checkpoint.pth')
 
 args = parser.parse_args()
 
@@ -37,7 +37,7 @@ with open(args.category_names, 'r') as f:
 
 processor_type = 'cuda:0' if args.gpu and torch.cuda.is_available() else 'cpu'
 device = torch.device(processor_type)
-
+saved_models=args.saved_models
 
 def load_checkpoint(filepath):
     checkpoint = torch.load(filepath)
@@ -45,14 +45,12 @@ def load_checkpoint(filepath):
     model.classifier = checkpoint['classifier']
     model.load_state_dict(checkpoint['state_dict'])
     model.class_to_idx = checkpoint['class_to_idx']
-    optimizer = checkpoint['optimizer']
-    epochs = checkpoint['epochs']
-    
+        
     for param in model.parameters():
         param.requires_grad = False
         
     return model, checkpoint['class_to_idx']
-model, class_to_idx = load_checkpoint('./checkpoint.pth')
+model, class_to_idx = load_checkpoint('saved_models')
 
 model.to(device)
 

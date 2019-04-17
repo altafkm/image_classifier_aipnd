@@ -22,7 +22,7 @@ parser.add_argument('data_directory')
 parser.add_argument('--save_dir', action='store', default='.')
 parser.add_argument('--arch', action='store', default='vgg19')
 parser.add_argument('--learning_rate', action='store', default=0.01, type=float)
-parser.add_argument('--hidden_units', action='append', default=[], type=int)
+parser.add_argument('--hidden_units',default=512, type=int)
 parser.add_argument('--epochs', action='store', default=10, type=int)
 parser.add_argument('--gpu', action='store_true', default=False)
 
@@ -42,16 +42,16 @@ if incorrect_data_dir:
         exit(1)
 
 data_transforms = {
-    'train': transforms.Compose ([transforms.Resize(224),transforms.RandomRotation(30),transforms.CenterCrop(224),transforms.RandomHorizontalFlip(),transforms.ToTensor(),transforms.Normalize([0.485, 0.456, 0.406],[0.229, 0.224, 0.225])]),
+    'train': transforms.Compose ([transforms.Resize(256),transforms.RandomRotation(30),transforms.CenterCrop(224),transforms.RandomHorizontalFlip(),transforms.ToTensor(),transforms.Normalize([0.485, 0.456, 0.406],[0.229, 0.224, 0.225])]),
     'valid': transforms.Compose([
-        transforms.Resize(224),
+        transforms.Resize(256),
         transforms.CenterCrop(224),
         transforms.ToTensor(),
         transforms.Normalize([0.485, 0.456, 0.406], 
                              [0.229, 0.224, 0.225])
     ]),
     'test': transforms.Compose([
-        transforms.Resize(224),
+        transforms.Resize(256),
         transforms.CenterCrop(224),
         transforms.ToTensor(),
         transforms.Normalize([0.485, 0.456, 0.406], 
@@ -66,33 +66,34 @@ dataloaders = {x: torch.utils.data.DataLoader(image_datasets[x], batch_size=batc
 
 dataset_sizes = {x: len(image_datasets[x]) for x in ['train','valid','test']}
 class_names = image_datasets['train'].classes
-device = torch.device("cuda")
-
-if args.arch not in('vgg19' or 'densenet121'):
-    parser.error("Not trained model: Can only choose 'vgg19 or 'densenet121'")
-
 
 init_lr = args.learning_rate
 epochs = args.epochs
 model_nm = args.arch
-if args.epochs > 20:
-    parser.error("Please choose value less than 20")
+#if args.epochs > 20:
+#    parser.error("Please choose value less than 20")
+
+#if args.arch not in('vgg19' or 'densenet161'):
+#    parser.error("Not trained model: Can only choose 'vgg19 or 'densenet161'")
     
-if model_nm == 'densenet121':
-    model = models.densenet121(pretrained=True)
+if model_nm == 'densenet161':
+    model = models.densenet161(pretrained=True)
     input_features = 2208
     #print(model)
 elif model_nm == 'vgg19':
     model = models.vgg19(pretrained=True)
     input_features = 25088
+else:
+    print(model_nm + "Not trained model: Can only choose 'vgg19 or 'densenet161'")
+    
 
 for param in model.parameters():
     param.requires_grad = False
 
 from torch.optim import lr_scheduler
 
-if len(args.hidden_units) == 0:
-    args.hidden_units = 512
+#if len(args.hidden_units) == 0:
+#    args.hidden_units = 512
 
 classifier = nn.Sequential(OrderedDict([
                           ('fc1', nn.Linear(input_features,args.hidden_units)),
@@ -108,6 +109,7 @@ criterion = nn.CrossEntropyLoss()
 optimizer = optim.Adam(model.classifier.parameters(), lr=init_lr)
 sched = lr_scheduler.StepLR(optimizer, step_size=4, gamma=0.1)
 
+
 processor_type = 'cuda:0' if args.gpu and torch.cuda.is_available() else 'cpu'
 device = torch.device(processor_type)
 model.to(device)
@@ -122,7 +124,7 @@ def train_model(model, criterion, optimizer, sched, num_epochs=5):
 
     for epoch in range(num_epochs):
         print('Epoch {}/{}'.format(epoch+1, num_epochs))
-        print('-' * 10)
+        print('-' * 15)
 
         # Each epoch has a training and validation phase
         for phase in ['train','valid','test']:
@@ -187,7 +189,7 @@ print('Pre-trained model: ', args.arch)
 print('Classification layers: ', args.hidden_units)
 print('Start of the Image Classification model')
 
-epochs = 10
+#epochs = 10
 model.to(device)
 model = train_model(model, criterion, optimizer, sched, epochs)
 print('Epochs started')
@@ -210,7 +212,7 @@ for inputs, labels in dataloaders['test']:
     
 print("Accuracy of the model on Test Data: {:.3f}".format(accuracy/len(dataloaders['test'])))
 
-model.class_to_idx = image_datasets['training'].class_to_idx
+model.class_to_idx = image_datasets['train'].class_to_idx
 
 def init_checkpoint():
     checkpoint = {
@@ -224,7 +226,8 @@ def init_checkpoint():
         'learning_rate': args.learning_rate,
         'arch': args.arch,
         'scheduler': sched,
-        'model': models(args.arch)(pretrained=True),
+        'checkpoint.pth': args.save_dir,
+        #'model': models(args.arch)(pretrained=True),
         'classifier': classifier,
     }
 
